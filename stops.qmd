@@ -1,0 +1,17 @@
+---
+title: "Stops"
+author: Naveed Ahmad
+format: html
+execute: 
+  echo: false
+---
+
+```{r}
+#| message: false
+library(tidyverse)
+library(primer.data)
+library(tidymodels)
+```
+
+## Summary
+<div style="text-align: justify;">When stopped, the arrest of drivers may be predicted to very on some factors like race, sex, zone. In this study we will use data from the open policing project to predict the arrest by accounting for some covariates. </div>
