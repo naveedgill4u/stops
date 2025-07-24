@@ -8,10 +8,113 @@ execute:
 
 ```{r}
 #| message: false
+#| warning: false
 library(tidyverse)
 library(primer.data)
 library(tidymodels)
+library(broom)
+library(gt)
+library(marginaleffects)
+library(ggplot2)
 ```
 
 ## Summary
-<div style="text-align: justify;">When stopped, the arrest of drivers may be predicted to very on some factors like race, sex, zone. In this study we will use data from the open policing project to predict the arrest by accounting for some covariates. </div>
+<div style="text-align: justify;">When stopped, the arrest of drivers may be predicted to very on some factors like race, sex, zone. In this study we will use data from the open policing project to predict the arrest of drivers by adjusting for some covariates. However, our assumptions that data is valid, stable and representative of all drivers if not proved fully, the predictions may very. Because, the divers or offcicers may have change in behavior, education, traing, and also change in zone may differ hence, our predictions about arrest may very from actual. We used logistic regression model to predict arrested as function of race, sex, and zone. The predictions of being arrested show that black, male drivers have the highest probability in all zones except zone x. The highest probability of being arrested is more than 35% for black drivers in zone w with variation in perdition 32% to 38%.</div>
+
+
+## Statistical Model
+
+Since $Y$ is a binary variable (with exactly two possible values), the probability family is **Bernoulli**:
+
+$$
+Y \sim \text{Bernoulli}(\rho)
+$$
+
+where $\rho$ is the probability that one of the two possible values — conventionally referred to as 1 (or TRUE) — occurs. By definition, $1 - \rho$ is the probability of the other value.
+
+For a binary outcome variable, we use a **log-odds model**:
+
+$$
+\log\left(\frac{\rho}{1 - \rho}\right) = \beta_0 + \beta_1 X_1 + \beta_2 X_2 + \cdots + \beta_k X_k
+$$
+
+```{r}
+#| cache: true
+x <- stops |>
+  filter(race %in% c("black", "white")) |>
+  mutate(race = str_to_title(race), 
+         sex = str_to_title(sex))
+
+fit_stops <- linear_reg() |>
+    set_engine("lm") |>
+    fit(arrested ~ sex + race*zone, data = x)
+```
+
+## Table of Coefficients of Parameters
+```{r}
+#| message: false
+#| warning: false
+stops_tbl <- tidy(fit_stops, conf.int = TRUE) |>
+  select(term, estimate, conf.low, conf.high) |>
+  mutate(across(c(estimate, conf.low, conf.high), round, 2)) |>
+  gt() |>
+  tab_header(
+    title = "Coefficients with 95% Confidence Intervals"
+  ) |>
+  cols_label(
+    term = "Term",
+    estimate = "Estimate",
+    conf.low = "95% CI Lower",
+    conf.high = "95% CI Upper"
+  ) |>
+  fmt_number(
+    columns = c(estimate, conf.low, conf.high),
+    decimals = 2
+  ) |>
+  tab_options(
+    table.font.size = "small",
+    table.border.top.color = "gray80",
+    table.border.bottom.color = "gray80"
+  )
+stops_tbl
+```
+
+## Fited regression model
+$$
+\widehat{\text{arrested}} = 0.177 
++ 0.0614 \cdot \text{sex}_{\text{Male}} 
+- 0.0445 \cdot \text{race}_{\text{White}} 
++ 0.0146 \cdot \text{zone}_{\text{B}} 
++ 0.00610 \cdot \text{zone}_{\text{C}} 
++ 0.0781 \cdot \text{zone}_{\text{D}} 
++ 0.00190 \cdot \text{zone}_{\text{E}} 
+- 0.00271 \cdot \text{zone}_{\text{F}} 
++ 0.0309 \cdot \text{zone}_{\text{G}} 
++ 0.0757 \cdot \text{zone}_{\text{H}} 
++ \text{(interaction terms for race and zone)}
+$$
+
+this is our Data Generating Mechanism
+
+```{r}
+#| message: false
+#| warning: false
+ stops_pre_tbl <- predictions(fit_stops, condition = c("sex", "race"))
+```
+
+## Plot showing prediction of arrested
+```{r}
+stops_pre_tbl |>
+  slice_sample(n = 1000) |>
+  mutate(zone = factor(zone)) |>  # Ensures correct ordering of zones
+  ggplot(aes(y = zone, x = estimate, color = race, shape = sex)) +
+  geom_point(size = 2) +
+  geom_errorbarh(aes(xmin = conf.low, xmax = conf.high), height = 0.2) +  # horizontal error bars
+  labs(
+    title = "Prediction of arrested by Zone, Race, and Sex",
+    subtitle = "Black and sex Male has the highest pobability of arrested",
+    x = "Predicted Probability",
+    y = "Zone"
+  ) +
+  theme_minimal(base_size = 13)
+```
